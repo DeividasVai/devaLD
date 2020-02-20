@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\DEVA\\source\\repos\\devaLD\\devaLD\\devaLD.csproj": {}
+    "C:\\Users\\DEVA\\Documents\\repos\\devaLD\\devaLD\\devaLD\\devaLD.csproj": {}
   },
   "projects": {
-    "C:\\Users\\DEVA\\source\\repos\\devaLD\\devaLD\\devaLD.csproj": {
+    "C:\\Users\\DEVA\\Documents\\repos\\devaLD\\devaLD\\devaLD\\devaLD.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\DEVA\\source\\repos\\devaLD\\devaLD\\devaLD.csproj",
+        "projectUniqueName": "C:\\Users\\DEVA\\Documents\\repos\\devaLD\\devaLD\\devaLD\\devaLD.csproj",
         "projectName": "devaLD",
-        "projectPath": "C:\\Users\\DEVA\\source\\repos\\devaLD\\devaLD\\devaLD.csproj",
+        "projectPath": "C:\\Users\\DEVA\\Documents\\repos\\devaLD\\devaLD\\devaLD\\devaLD.csproj",
         "packagesPath": "C:\\Users\\DEVA\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\DEVA\\source\\repos\\devaLD\\devaLD\\obj\\",
+        "outputPath": "C:\\Users\\DEVA\\Documents\\repos\\devaLD\\devaLD\\devaLD\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
-          "C:\\Microsoft\\Xamarin\\NuGet\\",
+          "C:\\Microsoft\\Xamarin\\NuGet",
           "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
         ],
         "configFilePaths": [
