@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Timers;
 
 namespace devaLD
 {
@@ -6,7 +7,8 @@ namespace devaLD
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            StudentsManager sm = new StudentsManager();
+            sm.Run();
         }
     }
 }
