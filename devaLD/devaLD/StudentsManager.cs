@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 
 namespace devaLD
@@ -12,7 +13,8 @@ namespace devaLD
         AddGradesHomework,
         AddGradesExam,
         ListOfStudents,
-        RemoveStudent
+        RemoveStudent,
+        StudentImport
     }
     
     public class StudentsManager
@@ -30,7 +32,6 @@ namespace devaLD
             Working = true;
             VisibleContent = VisibleContent.MainMenu;
             Students = new List<Student>();
-            PrepareDummyStudents();
         }
 
         public void Run()
@@ -57,13 +58,16 @@ namespace devaLD
                     case VisibleContent.RemoveStudent:
                         RemoveStudentView();
                         break;
+                    case VisibleContent.StudentImport:
+                        ImportStudents();
+                        break;
                     default:
                         break;
                 }
             }
         }
 
-        public void PrepareDummyStudents()
+        private void PrepareDummyStudents()
         {
             Students = Students ?? new List<Student>();
             var student = Student.New(!Students.Any() ? 1 : Students.Last().ID + 1);
@@ -81,19 +85,21 @@ namespace devaLD
             student.LastName = "Ramintiene";
             Students.Add(student);
         }
-        
-        public void MainMenuView()
+
+        private void MainMenuView()
         {
             Console.Title = $"Main Menu";
             Console.Clear();
             Console.WriteLine($"\n---MAIN MENU---");
-            Console.WriteLine($"Program automatically adds 3 students by default. Comment out line 33 in StudentsManager.cs to prevent it from doing it.\n");
+            // Console.WriteLine($"Program automatically adds 3 students by default. Comment out line 33 in StudentsManager.cs to prevent it from doing it.\n");
+            
             Console.WriteLine($"Write a number and press enter to change the view\n");
             Console.WriteLine($"1. Add student(-s)");
             Console.WriteLine($"2. Add homework grades for a student");
             Console.WriteLine($"3. Add an exam grade for a student");
             Console.WriteLine($"4. List students with their averages");
             Console.WriteLine($"5. Remove student(-s)");
+            Console.WriteLine($"6. Import students from file");
             Console.WriteLine($"0. Exit");
 
             var choice = int.Parse(Console.ReadLine());
@@ -114,6 +120,9 @@ namespace devaLD
                 case 5:
                     VisibleContent = VisibleContent.RemoveStudent;
                     break;
+                case 6:
+                    VisibleContent = VisibleContent.StudentImport;
+                    break;
                 case 0:
                     Working = false;
                     break;
@@ -123,7 +132,7 @@ namespace devaLD
             }
         }
 
-        public void AddStudentView()
+        private void AddStudentView()
         {
             Console.Title = "Add student";
             Console.Clear();
@@ -144,19 +153,14 @@ namespace devaLD
             if (inputSplit.Length <= 1)
                 return;
             
-            var firstName = input?.Split(" ")?[0];
-            var lastName = input?.Split(" ")?[1];
-
-            if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+            if (string.IsNullOrEmpty(input?.Split(" ")?[0]) || 
+                string.IsNullOrEmpty(input?.Split(" ")?[1]))
                 return;
 
-            var student = Student.New(!Students.Any() ? 1 : Students.Last().ID + 1);
-            student.FirstName = firstName;
-            student.LastName = lastName;
-            Students.Add(student);
+            AddStudent(input?.Split(" ")?[0], input?.Split(" ")?[1]);
         }
 
-        public void AddHomeworkGradesView()
+        private void AddHomeworkGradesView()
         {
             Console.Clear();
             Console.Title = "---ADD HOMEWORK GRADES---";
@@ -182,7 +186,7 @@ namespace devaLD
             VisibleContent = VisibleContent.MainMenu;
         }
 
-        public void AddExamGradesView()
+        private void AddExamGradesView()
         {
             Console.Clear();
             Console.Title = "---ADD EXAM GRADES---";
@@ -194,24 +198,36 @@ namespace devaLD
             Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Grade student's exam");
 
-            double grade;
-            while (double.IsNaN(grade = AddGrade()))
+            while (!AddGrade(studentId, true))
             { /*Simply go till u have a grade*/ }
-            var first = Students.FirstOrDefault(x => x.ID == studentId);
-            if (first != null) first.ExamGrade = grade;
             VisibleContent = VisibleContent.MainMenu;
         }
-        
-        public void ListOfStudentsView(bool showAverages = false)
+
+        private void ListOfStudentsView(bool showAverages = false)
         {
             if (showAverages)
             {
                 Console.Clear();
                 Console.WriteLine("---LIST OF STUDENTS---");
-                Console.WriteLine($"{TabulatedText("Vardas")}{TabulatedText("Pavarde")}{TabulatedText("Galutinis (vid.)")}");
-                foreach (var student in Students)
+                Console.WriteLine($"{TabulatedText("Vardas")}" +
+                                  $"{TabulatedText("Pavarde")}" +
+                                  $"{TabulatedText("Galutinis (vid.)")}" +
+                                  $"{TabulatedText("Galutinis (med.)")}");
+                foreach (var student in Students.OrderBy(x => x.FirstName).ThenBy(x => x.LastName))
                 {
-                    Console.Write($"{TabulatedText(student.FirstName)}{TabulatedText(student.LastName)}{TabulatedText(student.Average.ToString(CultureInfo.InvariantCulture))}\n");
+                    var stAverage = Math.Round(student.Average, 2);
+                    var studentGrades = new List<double>(student.HomeworkGrades) {student.ExamGrade};
+                    studentGrades = studentGrades.OrderBy(x => x).ToList();
+                    var gradeCount = studentGrades.Count;
+
+                    var stMedian = gradeCount % 2 == 0
+                        ? (studentGrades[gradeCount / 2] + studentGrades[(gradeCount / 2) + 1]) / 2
+                        : studentGrades[gradeCount / 2];
+                    
+                    Console.Write($"{TabulatedText(student.FirstName)}" +
+                                  $"{TabulatedText(student.LastName)}" +
+                                  $"{TabulatedText(stAverage.ToString(CultureInfo.InvariantCulture))}" +
+                                  $"{TabulatedText(stMedian.ToString(CultureInfo.InvariantCulture))}\n");
                 }
                 Console.WriteLine("Press enter to go back");
                 Console.ReadLine();
@@ -226,7 +242,7 @@ namespace devaLD
             }
         }
 
-        public void RemoveStudentView()
+        private void RemoveStudentView()
         {
             Console.Clear();
             Console.Title = "---REMOVE STUDENT---";
@@ -234,7 +250,7 @@ namespace devaLD
             Console.WriteLine("Type 'STOP' to return to main menu");
             ListOfStudentsView();
             var result = Console.ReadLine();
-            if (result.ToUpper() == "STOP")
+            if (result?.ToUpper() == "STOP")
             {
                 VisibleContent = VisibleContent.MainMenu;
                 return;
@@ -257,16 +273,71 @@ namespace devaLD
             VisibleContent = VisibleContent.MainMenu;
         }
 
+        private void ImportStudents()
+        {
+            var workingDirectory = Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent.FullName;
+            var dataFolder = Path.Combine(workingDirectory, "data");
+            var studentsFile = Path.Combine(dataFolder, "students.txt");
+            
+
+            var studentsFileLines = File.ReadLines(studentsFile).ToList();
+            var firstRow = true;
+            var columns = new List<string>();
+            foreach (var line in studentsFileLines)
+            {
+                if (firstRow)
+                {
+                    columns = FormatLine(line);
+                    firstRow = false;
+                    continue;
+                }
+                var stColumns = FormatLine(line);
+                var studId = AddStudent(stColumns[0], stColumns[1]);
+                if (studId == -1) continue;
+                foreach (var column in columns.Where(x => x.Contains("ND")))
+                {
+                    AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
+                }
+
+                var examIndex = columns.IndexOf("Egzaminas");
+                AddGrade(studId, true, double.Parse(stColumns[examIndex]));
+            }
+
+            VisibleContent = VisibleContent.MainMenu;
+        }
+
+        private List<string> FormatLine(string line)
+        {
+            var columns = line.Split("\t").ToList();
+            columns.RemoveAll(s => s == "");
+            return columns;
+        }
+
         private bool IsAcceptOrDecline(string response, out bool answer)
         {
             answer = response.ToUpper() == "Y";
             return response.ToUpper() == "Y" || response.ToUpper() == "N";
         }
         
-        private double AddGrade()
+        private bool AddGrade(int id, bool isExamGrade = false, double grade = double.NaN)
         {
-            double.TryParse(Console.ReadLine(), out var grade);
-            return grade < 1 || grade > 10 ? double.NaN : grade;
+            if (double.IsNaN(grade))
+            {
+                double.TryParse(Console.ReadLine(), out var inputGrade);
+                if (inputGrade < 1 || inputGrade > 10)
+                    return false;
+                grade = inputGrade;
+            }
+
+            if (!isExamGrade)
+                Students.FirstOrDefault(x => x.ID == id)?.HomeworkGrades.Add(grade);
+            else
+            {
+                var student = Students.FirstOrDefault(x => x.ID == id);
+                if (student != null) student.ExamGrade = grade;
+            }
+
+            return true;
         }
 
         private string TabulatedText(string text)
@@ -274,6 +345,17 @@ namespace devaLD
             while (text.Length != _tabulationSize)
                 text += " ";
             return text;
+        }
+
+        private int AddStudent(string firstName, string lastName)
+        {
+            if (Students.Any(x => x.FirstName == firstName && x.LastName == lastName))
+                return -1;
+            var student = Student.New(!Students.Any() ? 1 : Students.OrderBy(x => x.ID).Last().ID + 1);
+            student.FirstName = firstName;
+            student.LastName = lastName;
+            Students.Add(student);
+            return student.ID;
         }
     }
 }
