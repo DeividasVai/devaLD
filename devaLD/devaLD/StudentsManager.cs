@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -38,31 +39,49 @@ namespace devaLD
         {
             while (Working)
             {
-                switch (VisibleContent)
+                try
                 {
-                    case VisibleContent.MainMenu:
-                        MainMenuView();
-                        break;
-                    case VisibleContent.AddStudent:
-                        AddStudentView();
-                        break;
-                    case VisibleContent.AddGradesHomework:
-                        AddHomeworkGradesView();
-                        break;
-                    case VisibleContent.AddGradesExam:
-                        AddExamGradesView();
-                        break;
-                    case VisibleContent.ListOfStudents:
-                        ListOfStudentsView(true);
-                        break;
-                    case VisibleContent.RemoveStudent:
-                        RemoveStudentView();
-                        break;
-                    case VisibleContent.StudentImport:
-                        ImportStudents();
-                        break;
-                    default:
-                        break;
+                    switch (VisibleContent)
+                    {
+                        case VisibleContent.MainMenu:
+                            MainMenuView();
+                            break;
+                        case VisibleContent.AddStudent:
+                            AddStudentView();
+                            break;
+                        case VisibleContent.AddGradesHomework:
+                            AddHomeworkGradesView();
+                            break;
+                        case VisibleContent.AddGradesExam:
+                            AddExamGradesView();
+                            break;
+                        case VisibleContent.ListOfStudents:
+                            ListOfStudentsView(true);
+                            break;
+                        case VisibleContent.RemoveStudent:
+                            RemoveStudentView();
+                            break;
+                        case VisibleContent.StudentImport:
+                            ImportStudents();
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.Clear();
+                    Console.WriteLine("--- ERROR ---\n\n");
+                    foreach (DictionaryEntry entry in e.Data)
+                    {
+                        Console.Out.WriteLine($"{entry.Key} -- {entry.Value}");
+                    }
+                    
+                    Console.WriteLine($"\nGenerated message:\n{e.Message}");
+                    Console.WriteLine($"\nStack trace:\n{e.StackTrace}");
+
+                    Console.WriteLine("\n\nPress enter to continue");
+                    Console.ReadLine();
                 }
             }
         }
@@ -102,7 +121,12 @@ namespace devaLD
             Console.WriteLine($"6. Import students from file");
             Console.WriteLine($"0. Exit");
 
-            var choice = int.Parse(Console.ReadLine());
+            if (!int.TryParse(Console.ReadLine(), out int choice))
+            {
+                VisibleContent = VisibleContent.MainMenu;
+                return;
+            }
+            
             switch (choice)
             {
                 case 1:
@@ -176,7 +200,8 @@ namespace devaLD
             int.TryParse(response, out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Grade student's homework");
             var result = "";
             while ((result = Console.ReadLine()?.ToLower()) != "stop")
@@ -195,7 +220,8 @@ namespace devaLD
             int.TryParse(Console.ReadLine(), out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Grade student's exam");
 
             while (!AddGrade(studentId, true))
@@ -258,7 +284,9 @@ namespace devaLD
             int.TryParse(result, out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"Are you sure you want to remove: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"Are you sure you want to remove: " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Y - yes\nN - no");
             var delete = false;
             while (true)
@@ -275,35 +303,60 @@ namespace devaLD
 
         private void ImportStudents()
         {
-            var workingDirectory = Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent.FullName;
-            var dataFolder = Path.Combine(workingDirectory, "data");
-            var studentsFile = Path.Combine(dataFolder, "students.txt");
-            
-
-            var studentsFileLines = File.ReadLines(studentsFile).ToList();
-            var firstRow = true;
-            var columns = new List<string>();
-            foreach (var line in studentsFileLines)
+            try
             {
-                if (firstRow)
-                {
-                    columns = FormatLine(line);
-                    firstRow = false;
-                    continue;
-                }
-                var stColumns = FormatLine(line);
-                var studId = AddStudent(stColumns[0], stColumns[1]);
-                if (studId == -1) continue;
-                foreach (var column in columns.Where(x => x.Contains("ND")))
-                {
-                    AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
-                }
+                var directoryInfo = Directory
+                    .GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+                if (directoryInfo == null) return;
+                
+                var workingDirectory = directoryInfo.FullName;
+                var dataFolder = Path.Combine(workingDirectory, "data");
+                var studentsFile = Path.Combine(dataFolder, "students.txt");
 
-                var examIndex = columns.IndexOf("Egzaminas");
-                AddGrade(studId, true, double.Parse(stColumns[examIndex]));
+
+                var studentsFileLines = File.ReadLines(studentsFile).ToList();
+                var firstRow = true;
+                var columns = new List<string>();
+                foreach (var line in studentsFileLines)
+                {
+                    if (firstRow)
+                    {
+                        columns = FormatLine(line);
+                        firstRow = false;
+                        continue;
+                    }
+
+                    var stColumns = FormatLine(line);
+                    var studId = AddStudent(stColumns[0], stColumns[1]);
+                    if (studId == -1) continue;
+                    foreach (var column in columns.Where(x => x.Contains("ND")))
+                    {
+                        AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
+                    }
+
+                    var examIndex = columns.IndexOf("Egzaminas");
+                    AddGrade(studId, true, double.Parse(stColumns[examIndex]));
+                }
+            }
+            catch (Exception e)
+            {
+                e.Data.Add("ImportStudents",
+                    "Error possibly due to the directory not having the correct document, or it being incorrect itself");
+                var directoryInfo = Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+                if (directoryInfo != null)
+                    e.Data.Add("Requirements",
+                        $"a folder called 'data' withing working directory (currently {directoryInfo.FullName}) with a file" +
+                        $" called 'students.txt'");
+                else
+                    e.Data.Add("Requirements",
+                        $"a folder called 'data' withing working directory  with a file called 'students.txt'");
+                throw;
+            }
+            finally
+            {
+                VisibleContent = VisibleContent.MainMenu;                
             }
 
-            VisibleContent = VisibleContent.MainMenu;
         }
 
         private List<string> FormatLine(string line)
