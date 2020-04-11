@@ -15,12 +15,12 @@ namespace devaLD
         AddGradesExam,
         ListOfStudents,
         RemoveStudent,
-        StudentImport
+        StudentImport,
+        StudentsGenerator
     }
     
     public class StudentsManager
     {
-        private int _tabulationSize = 24;
         
         public List<Student> Students { get; set; }
         
@@ -62,7 +62,10 @@ namespace devaLD
                             RemoveStudentView();
                             break;
                         case VisibleContent.StudentImport:
-                            ImportStudents();
+                            ImportStudentsView();
+                            break;
+                        case VisibleContent.StudentsGenerator:
+                            GenerateStudentsView();
                             break;
                         default:
                             break;
@@ -119,6 +122,7 @@ namespace devaLD
             Console.WriteLine($"4. List students with their averages");
             Console.WriteLine($"5. Remove student(-s)");
             Console.WriteLine($"6. Import students from file");
+            Console.WriteLine($"7. Generate students");
             Console.WriteLine($"0. Exit");
 
             if (!int.TryParse(Console.ReadLine(), out int choice))
@@ -146,6 +150,9 @@ namespace devaLD
                     break;
                 case 6:
                     VisibleContent = VisibleContent.StudentImport;
+                    break;
+                case 7:
+                    VisibleContent = VisibleContent.StudentsGenerator;
                     break;
                 case 0:
                     Working = false;
@@ -235,10 +242,10 @@ namespace devaLD
             {
                 Console.Clear();
                 Console.WriteLine("---LIST OF STUDENTS---");
-                Console.WriteLine($"{TabulatedText("Vardas")}" +
-                                  $"{TabulatedText("Pavarde")}" +
-                                  $"{TabulatedText("Galutinis (vid.)")}" +
-                                  $"{TabulatedText("Galutinis (med.)")}");
+                Console.WriteLine($"{TextFormatter.TabulatedText("Vardas")}" +
+                                  $"{TextFormatter.TabulatedText("Pavarde")}" +
+                                  $"{TextFormatter.TabulatedText("Galutinis (vid.)")}" +
+                                  $"{TextFormatter.TabulatedText("Galutinis (med.)")}");
                 foreach (var student in Students.OrderBy(x => x.FirstName).ThenBy(x => x.LastName))
                 {
                     var stAverage = Math.Round(student.Average, 2);
@@ -250,10 +257,10 @@ namespace devaLD
                         ? (studentGrades[gradeCount / 2] + studentGrades[(gradeCount / 2) + 1]) / 2
                         : studentGrades[gradeCount / 2];
                     
-                    Console.Write($"{TabulatedText(student.FirstName)}" +
-                                  $"{TabulatedText(student.LastName)}" +
-                                  $"{TabulatedText(stAverage.ToString(CultureInfo.InvariantCulture))}" +
-                                  $"{TabulatedText(stMedian.ToString(CultureInfo.InvariantCulture))}\n");
+                    Console.Write($"{TextFormatter.TabulatedText(student.FirstName)}" +
+                                  $"{TextFormatter.TabulatedText(student.LastName)}" +
+                                  $"{TextFormatter.TabulatedText(stAverage.ToString(CultureInfo.InvariantCulture))}" +
+                                  $"{TextFormatter.TabulatedText(stMedian.ToString(CultureInfo.InvariantCulture))}\n");
                 }
                 Console.WriteLine("Press enter to go back");
                 Console.ReadLine();
@@ -263,7 +270,7 @@ namespace devaLD
             {
                 foreach (var student in Students)
                 {
-                    Console.Write($"{TabulatedText(student.ID.ToString())}{TabulatedText(student.FirstName)}{TabulatedText(student.LastName)}\n");
+                    Console.Write($"{TextFormatter.TabulatedText(student.ID.ToString())}{TextFormatter.TabulatedText(student.FirstName)}{TextFormatter.TabulatedText(student.LastName)}\n");
                 }
             }
         }
@@ -301,7 +308,7 @@ namespace devaLD
             VisibleContent = VisibleContent.MainMenu;
         }
 
-        private void ImportStudents()
+        private void ImportStudentsView()
         {
             try
             {
@@ -321,12 +328,13 @@ namespace devaLD
                 {
                     if (firstRow)
                     {
-                        columns = FormatLine(line);
+                        columns = TextFormatter.FormatLineFromFile(line);
                         firstRow = false;
                         continue;
                     }
 
-                    var stColumns = FormatLine(line);
+                    var stColumns = TextFormatter.FormatLineFromFile(line);
+                    
                     var studId = AddStudent(stColumns[0], stColumns[1]);
                     if (studId == -1) continue;
                     foreach (var column in columns.Where(x => x.Contains("ND")))
@@ -359,12 +367,55 @@ namespace devaLD
 
         }
 
-        private List<string> FormatLine(string line)
+        private void GenerateStudentsView()
         {
-            var columns = line.Split("\t").ToList();
-            columns.RemoveAll(s => s == "");
-            return columns;
+            Console.Clear();
+            Console.Title = "---GENERATE STUDENTS---";
+            Console.WriteLine("Choose a number of student's to generate\nType 'STOP' to exit");
+            
+            Console.WriteLine("1. 1 000");
+            Console.WriteLine("2. 10 000");
+            Console.WriteLine("3. 100 000");
+            Console.WriteLine("4. 1 000 000");
+            Console.WriteLine("5. 10 000 000");
+
+            var select = Console.ReadLine();
+            if (select?.ToLower() == "stop")
+            {
+                VisibleContent = VisibleContent.MainMenu;
+                return;
+            }
+            
+            if (!int.TryParse(select, out var selectedNo))
+                GenerateStudentsView();
+
+            var directoryInfo = Directory
+                .GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+            if (directoryInfo == null) return;
+            var studGenerator = StudentsGenerator.New(Path.Combine(directoryInfo.FullName, "data"));
+            
+            switch (selectedNo)
+            {
+                case 1:
+                    studGenerator.GenerateStudents(1000);
+                    break;
+                case 2:
+                    studGenerator.GenerateStudents(10000);
+                    break;
+                case 3:
+                    studGenerator.GenerateStudents(100000);
+                    break;
+                case 4:
+                    studGenerator.GenerateStudents(1000000);
+                    break;
+                case 5:
+                    studGenerator.GenerateStudents(10000000);
+                    break;
+            }
+
+            VisibleContent = VisibleContent.MainMenu;
         }
+
 
         private bool IsAcceptOrDecline(string response, out bool answer)
         {
@@ -393,12 +444,6 @@ namespace devaLD
             return true;
         }
 
-        private string TabulatedText(string text)
-        {
-            while (text.Length != _tabulationSize)
-                text += " ";
-            return text;
-        }
 
         private int AddStudent(string firstName, string lastName)
         {
