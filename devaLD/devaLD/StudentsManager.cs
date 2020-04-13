@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -393,29 +394,59 @@ namespace devaLD
                 .GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
             if (directoryInfo == null) return;
             var studGenerator = StudentsGenerator.New(Path.Combine(directoryInfo.FullName, "data"));
-            
+
+            Console.WriteLine("Do you wish to order them using different methods? Y/N");
+            var orderText = Console.ReadLine();
+            var selectedCount = 0;
+
             switch (selectedNo)
             {
                 case 1:
                     studGenerator.GenerateStudents(1000);
+                    selectedCount = 1000;
                     break;
                 case 2:
                     studGenerator.GenerateStudents(10000);
+                    selectedCount = 10000;
                     break;
                 case 3:
                     studGenerator.GenerateStudents(100000);
+                    selectedCount = 100000;
                     break;
                 case 4:
                     studGenerator.GenerateStudents(1000000);
+                    selectedCount = 1000000;
                     break;
                 case 5:
                     studGenerator.GenerateStudents(10000000);
+                    selectedCount = 10000000;
                     break;
             }
+            
+            if (orderText.ToLower() == "y")
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithLinkedList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with linked list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithQueue(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with queue took: {stopwatch.Elapsed}");
+            }
 
+            Console.ReadLine();
             VisibleContent = VisibleContent.MainMenu;
         }
 
+        
 
         private bool IsAcceptOrDecline(string response, out bool answer)
         {
