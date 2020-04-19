@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -27,6 +28,21 @@ namespace devaLD
         public static Student New(int id)
         {
             return new Student() { ID = id };
+        }
+
+        public static Student PrepareFromText(List<string> columns, List<string> line)
+        {
+            var stud = new Student {FirstName = line[0], LastName = line[1]};
+
+            foreach (var column in columns.Where(x => x.Contains("ND")))
+            {
+                stud.HomeworkGrades.Add(double.Parse(line[columns.IndexOf(column)]));
+            }
+
+            var examIndex = columns.IndexOf("Egzaminas");
+            stud.ExamGrade = double.Parse(line[examIndex]);
+            
+            return stud;
         }
     }
 }

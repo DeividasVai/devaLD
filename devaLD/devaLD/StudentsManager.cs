@@ -1,7 +1,11 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Numerics;
 
 namespace devaLD
 {
@@ -12,12 +16,13 @@ namespace devaLD
         AddGradesHomework,
         AddGradesExam,
         ListOfStudents,
-        RemoveStudent
+        RemoveStudent,
+        StudentImport,
+        StudentsGenerator
     }
     
     public class StudentsManager
     {
-        private int _tabulationSize = 24;
         
         public List<Student> Students { get; set; }
         
@@ -30,40 +35,64 @@ namespace devaLD
             Working = true;
             VisibleContent = VisibleContent.MainMenu;
             Students = new List<Student>();
-            PrepareDummyStudents();
         }
 
         public void Run()
         {
             while (Working)
             {
-                switch (VisibleContent)
+                try
                 {
-                    case VisibleContent.MainMenu:
-                        MainMenuView();
-                        break;
-                    case VisibleContent.AddStudent:
-                        AddStudentView();
-                        break;
-                    case VisibleContent.AddGradesHomework:
-                        AddHomeworkGradesView();
-                        break;
-                    case VisibleContent.AddGradesExam:
-                        AddExamGradesView();
-                        break;
-                    case VisibleContent.ListOfStudents:
-                        ListOfStudentsView(true);
-                        break;
-                    case VisibleContent.RemoveStudent:
-                        RemoveStudentView();
-                        break;
-                    default:
-                        break;
+                    switch (VisibleContent)
+                    {
+                        case VisibleContent.MainMenu:
+                            MainMenuView();
+                            break;
+                        case VisibleContent.AddStudent:
+                            AddStudentView();
+                            break;
+                        case VisibleContent.AddGradesHomework:
+                            AddHomeworkGradesView();
+                            break;
+                        case VisibleContent.AddGradesExam:
+                            AddExamGradesView();
+                            break;
+                        case VisibleContent.ListOfStudents:
+                            ListOfStudentsView(true);
+                            break;
+                        case VisibleContent.RemoveStudent:
+                            RemoveStudentView();
+                            break;
+                        case VisibleContent.StudentImport:
+                            ImportStudentsView();
+                            break;
+                        case VisibleContent.StudentsGenerator:
+                            GenerateStudentsView();
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.Clear();
+                    Console.WriteLine("--- ERROR ---\n\n");
+                    Console.WriteLine("NOTE: This might be the continuation of your last error message if received, not a new one.\n\n");
+                    foreach (DictionaryEntry entry in e.Data)
+                    {
+                        Console.Out.WriteLine($"{entry.Key} -- {entry.Value}");
+                    }
+                    
+                    Console.WriteLine($"\nGenerated message:\n{e.Message}");
+                    Console.WriteLine($"\nStack trace:\n{e.StackTrace}");
+
+                    Console.WriteLine("\n\nPress enter to continue");
+                    Console.ReadLine();
                 }
             }
         }
 
-        public void PrepareDummyStudents()
+        private void PrepareDummyStudents()
         {
             Students = Students ?? new List<Student>();
             var student = Student.New(!Students.Any() ? 1 : Students.Last().ID + 1);
@@ -81,22 +110,30 @@ namespace devaLD
             student.LastName = "Ramintiene";
             Students.Add(student);
         }
-        
-        public void MainMenuView()
+
+        private void MainMenuView()
         {
             Console.Title = $"Main Menu";
             Console.Clear();
             Console.WriteLine($"\n---MAIN MENU---");
-            Console.WriteLine($"Program automatically adds 3 students by default. Comment out line 33 in StudentsManager.cs to prevent it from doing it.\n");
+            // Console.WriteLine($"Program automatically adds 3 students by default. Comment out line 33 in StudentsManager.cs to prevent it from doing it.\n");
+            
             Console.WriteLine($"Write a number and press enter to change the view\n");
             Console.WriteLine($"1. Add student(-s)");
             Console.WriteLine($"2. Add homework grades for a student");
             Console.WriteLine($"3. Add an exam grade for a student");
             Console.WriteLine($"4. List students with their averages");
             Console.WriteLine($"5. Remove student(-s)");
+            Console.WriteLine($"6. Import students from file");
+            Console.WriteLine($"7. Generate students");
             Console.WriteLine($"0. Exit");
 
-            var choice = int.Parse(Console.ReadLine());
+            if (!int.TryParse(Console.ReadLine(), out int choice))
+            {
+                VisibleContent = VisibleContent.MainMenu;
+                return;
+            }
+            
             switch (choice)
             {
                 case 1:
@@ -114,6 +151,12 @@ namespace devaLD
                 case 5:
                     VisibleContent = VisibleContent.RemoveStudent;
                     break;
+                case 6:
+                    VisibleContent = VisibleContent.StudentImport;
+                    break;
+                case 7:
+                    VisibleContent = VisibleContent.StudentsGenerator;
+                    break;
                 case 0:
                     Working = false;
                     break;
@@ -123,7 +166,7 @@ namespace devaLD
             }
         }
 
-        public void AddStudentView()
+        private void AddStudentView()
         {
             Console.Title = "Add student";
             Console.Clear();
@@ -144,19 +187,17 @@ namespace devaLD
             if (inputSplit.Length <= 1)
                 return;
             
-            var firstName = input?.Split(" ")?[0];
-            var lastName = input?.Split(" ")?[1];
-
-            if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+            if (string.IsNullOrEmpty(input?.Split(" ")?[0]) || 
+                string.IsNullOrEmpty(input?.Split(" ")?[1]))
                 return;
 
-            var student = Student.New(!Students.Any() ? 1 : Students.Last().ID + 1);
-            student.FirstName = firstName;
-            student.LastName = lastName;
-            Students.Add(student);
+            AddStudent(input?.Split(" ")?[0], input?.Split(" ")?[1], out var exists);
+            if (!exists) return;
+            Console.WriteLine($"Student with such first name and last name already exists.");
+            Console.ReadLine();
         }
 
-        public void AddHomeworkGradesView()
+        private void AddHomeworkGradesView()
         {
             Console.Clear();
             Console.Title = "---ADD HOMEWORK GRADES---";
@@ -172,7 +213,8 @@ namespace devaLD
             int.TryParse(response, out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Grade student's homework");
             var result = "";
             while ((result = Console.ReadLine()?.ToLower()) != "stop")
@@ -182,7 +224,7 @@ namespace devaLD
             VisibleContent = VisibleContent.MainMenu;
         }
 
-        public void AddExamGradesView()
+        private void AddExamGradesView()
         {
             Console.Clear();
             Console.Title = "---ADD EXAM GRADES---";
@@ -191,27 +233,40 @@ namespace devaLD
             int.TryParse(Console.ReadLine(), out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"You have chosen: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Grade student's exam");
 
-            double grade;
-            while (double.IsNaN(grade = AddGrade()))
+            while (!AddGrade(studentId, true))
             { /*Simply go till u have a grade*/ }
-            var first = Students.FirstOrDefault(x => x.ID == studentId);
-            if (first != null) first.ExamGrade = grade;
             VisibleContent = VisibleContent.MainMenu;
         }
-        
-        public void ListOfStudentsView(bool showAverages = false)
+
+        private void ListOfStudentsView(bool showAverages = false)
         {
             if (showAverages)
             {
                 Console.Clear();
                 Console.WriteLine("---LIST OF STUDENTS---");
-                Console.WriteLine($"{TabulatedText("Vardas")}{TabulatedText("Pavarde")}{TabulatedText("Galutinis (vid.)")}");
-                foreach (var student in Students)
+                Console.WriteLine($"{TextFormatter.TabulatedText("Vardas")}" +
+                                  $"{TextFormatter.TabulatedText("Pavarde")}" +
+                                  $"{TextFormatter.TabulatedText("Galutinis (vid.)")}" +
+                                  $"{TextFormatter.TabulatedText("Galutinis (med.)")}");
+                foreach (var student in Students.OrderBy(x => x.FirstName).ThenBy(x => x.LastName))
                 {
-                    Console.Write($"{TabulatedText(student.FirstName)}{TabulatedText(student.LastName)}{TabulatedText(student.Average.ToString(CultureInfo.InvariantCulture))}\n");
+                    var stAverage = Math.Round(student.Average, 2);
+                    var studentGrades = new List<double>(student.HomeworkGrades) {student.ExamGrade};
+                    studentGrades = studentGrades.OrderBy(x => x).ToList();
+                    var gradeCount = studentGrades.Count;
+
+                    var stMedian = gradeCount % 2 == 0
+                        ? (studentGrades[gradeCount / 2] + studentGrades[(gradeCount / 2) + 1]) / 2
+                        : studentGrades[gradeCount / 2];
+                    
+                    Console.Write($"{TextFormatter.TabulatedText(student.FirstName)}" +
+                                  $"{TextFormatter.TabulatedText(student.LastName)}" +
+                                  $"{TextFormatter.TabulatedText(stAverage.ToString(CultureInfo.InvariantCulture))}" +
+                                  $"{TextFormatter.TabulatedText(stMedian.ToString(CultureInfo.InvariantCulture))}\n");
                 }
                 Console.WriteLine("Press enter to go back");
                 Console.ReadLine();
@@ -221,12 +276,12 @@ namespace devaLD
             {
                 foreach (var student in Students)
                 {
-                    Console.Write($"{TabulatedText(student.ID.ToString())}{TabulatedText(student.FirstName)}{TabulatedText(student.LastName)}\n");
+                    Console.Write($"{TextFormatter.TabulatedText(student.ID.ToString())}{TextFormatter.TabulatedText(student.FirstName)}{TextFormatter.TabulatedText(student.LastName)}\n");
                 }
             }
         }
 
-        public void RemoveStudentView()
+        private void RemoveStudentView()
         {
             Console.Clear();
             Console.Title = "---REMOVE STUDENT---";
@@ -234,7 +289,7 @@ namespace devaLD
             Console.WriteLine("Type 'STOP' to return to main menu");
             ListOfStudentsView();
             var result = Console.ReadLine();
-            if (result.ToUpper() == "STOP")
+            if (result?.ToUpper() == "STOP")
             {
                 VisibleContent = VisibleContent.MainMenu;
                 return;
@@ -242,7 +297,9 @@ namespace devaLD
             int.TryParse(result, out var studentId);
             if (Students.All(x => x.ID != studentId))
                 return;
-            Console.WriteLine($"Are you sure you want to remove: {Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} {Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
+            Console.WriteLine($"Are you sure you want to remove: " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.FirstName} " +
+                              $"{Students.FirstOrDefault(x => x.ID == studentId)?.LastName}");
             Console.WriteLine("Y - yes\nN - no");
             var delete = false;
             while (true)
@@ -257,23 +314,241 @@ namespace devaLD
             VisibleContent = VisibleContent.MainMenu;
         }
 
+        private void ImportStudentsView()
+        {
+            try
+            {
+                var directoryInfo = Directory
+                    .GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+                if (directoryInfo == null) return;
+                
+                var workingDirectory = directoryInfo.FullName;
+                var dataFolder = Path.Combine(workingDirectory, "data");
+                var studentsFile = Path.Combine(dataFolder, "students.txt");
+
+
+                var studentsFileLines = File.ReadLines(studentsFile).ToList();
+                var firstRow = true;
+                var columns = new List<string>();
+                foreach (var line in studentsFileLines)
+                {
+                    if (firstRow)
+                    {
+                        columns = TextFormatter.FormatLineFromFile(line);
+                        firstRow = false;
+                        continue;
+                    }
+
+                    var stColumns = TextFormatter.FormatLineFromFile(line);
+                    
+                    var studId = AddStudent(stColumns[0], stColumns[1], out var exists);
+                    if (exists)
+                        foreach (var student in Students.Where(student => student.ID == studId))
+                        {
+                            student.HomeworkGrades = new List<double>();
+                            student.ExamGrade = double.NaN;
+                        }
+
+                    foreach (var column in columns.Where(x => x.Contains("ND")))
+                    {
+                        try
+                        {
+                            AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"\nGenerated message:\n{e.Message}");
+                            Console.WriteLine($"\nStack trace:\n{e.StackTrace}");
+                            
+                            
+                            Console.WriteLine("\n\nContinue with skipping this grade? Y/N");
+                            var answer = Console.ReadLine();
+                            if (answer?.ToLower() != "y")
+                            {
+                                Students = Students.Where(student =>
+                                {
+                                    return !studentsFileLines.Any(stLine =>
+                                    {
+                                        var stLineFormatted = TextFormatter.FormatLineFromFile(stLine);
+                                        return stLineFormatted[0] == student.FirstName &&
+                                               stLineFormatted[1] == student.LastName;
+                                    });
+                                }).ToList();
+                                throw;
+                            }
+                            else
+                                continue;
+                        }
+                    }
+
+                    var examIndex = columns.IndexOf("Egzaminas");
+                    AddGrade(studId, true, double.Parse(stColumns[examIndex]));
+                }
+            }
+            catch (Exception e)
+            {
+                e.Data.Add("ImportStudents",
+                    "Error possibly due to the directory not having the correct document, or it being incorrect itself");
+                var directoryInfo = Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+                if (directoryInfo != null)
+                    e.Data.Add("Requirements",
+                        $"a folder called 'data' withing working directory (currently {directoryInfo.FullName}) with a file" +
+                        $" called 'students.txt'");
+                else
+                    e.Data.Add("Requirements",
+                        $"a folder called 'data' withing working directory  with a file called 'students.txt'");
+                throw;
+            }
+            finally
+            {
+                VisibleContent = VisibleContent.MainMenu;                
+            }
+
+        }
+
+        private void GenerateStudentsView()
+        {
+            Console.Clear();
+            Console.Title = "---GENERATE STUDENTS---";
+            Console.WriteLine("Choose a number of student's to generate\nType 'STOP' to exit");
+            
+            Console.WriteLine("1. 1 000");
+            Console.WriteLine("2. 10 000");
+            Console.WriteLine("3. 100 000");
+            Console.WriteLine("4. 1 000 000");
+            Console.WriteLine("5. 10 000 000");
+
+            var select = Console.ReadLine();
+            if (select?.ToLower() == "stop")
+            {
+                VisibleContent = VisibleContent.MainMenu;
+                return;
+            }
+            
+            if (!int.TryParse(select, out var selectedNo))
+                GenerateStudentsView();
+
+            var directoryInfo = Directory
+                .GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).FullName).Parent;
+            if (directoryInfo == null) return;
+            var studGenerator = StudentsGenerator.New(Path.Combine(directoryInfo.FullName, "data"));
+
+            Console.WriteLine("Do you wish to order the full file using different methods? Y/N");
+            var orderText = Console.ReadLine();
+            Console.WriteLine("Do you wish to split and order the full file using different methods? Y/N");
+            var splitAndOrderText = Console.ReadLine();
+            var selectedCount = 0;
+
+            switch (selectedNo)
+            {
+                case 1:
+                    studGenerator.GenerateStudents(1000);
+                    selectedCount = 1000;
+                    break;
+                case 2:
+                    studGenerator.GenerateStudents(10000);
+                    selectedCount = 10000;
+                    break;
+                case 3:
+                    studGenerator.GenerateStudents(100000);
+                    selectedCount = 100000;
+                    break;
+                case 4:
+                    studGenerator.GenerateStudents(1000000);
+                    selectedCount = 1000000;
+                    break;
+                case 5:
+                    studGenerator.GenerateStudents(10000000);
+                    selectedCount = 10000000;
+                    break;
+            }
+            
+            if (orderText?.ToLower() == "y")
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithLinkedList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with linked list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.OrderStudentsWithQueue(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Ordering with queue took: {stopwatch.Elapsed}");
+            }
+            
+            if (splitAndOrderText?.ToLower() == "y")
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithLinkedList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with linked list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithQueue(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with queue took: {stopwatch.Elapsed}");
+            }
+
+            Console.ReadLine();
+            VisibleContent = VisibleContent.MainMenu;
+        }
+
         private bool IsAcceptOrDecline(string response, out bool answer)
         {
             answer = response.ToUpper() == "Y";
             return response.ToUpper() == "Y" || response.ToUpper() == "N";
         }
         
-        private double AddGrade()
+        private bool AddGrade(int id, bool isExamGrade = false, double grade = double.NaN)
         {
-            double.TryParse(Console.ReadLine(), out var grade);
-            return grade < 1 || grade > 10 ? double.NaN : grade;
+            if (double.IsNaN(grade))
+            {
+                double.TryParse(Console.ReadLine(), out var inputGrade);
+                if (inputGrade < 1 || inputGrade > 10)
+                    return false;
+                grade = inputGrade;
+            }
+
+            if (!isExamGrade)
+                Students.FirstOrDefault(x => x.ID == id)?.HomeworkGrades.Add(grade);
+            else
+            {
+                var student = Students.FirstOrDefault(x => x.ID == id);
+                if (student != null) student.ExamGrade = grade;
+            }
+
+            return true;
         }
 
-        private string TabulatedText(string text)
+        private int AddStudent(string firstName, string lastName, out bool exists)
         {
-            while (text.Length != _tabulationSize)
-                text += " ";
-            return text;
+            if (Students.Any(x => x.FirstName == firstName && x.LastName == lastName))
+            {
+                exists = true;
+                var first = Students.FirstOrDefault(x => lastName != null && (x.FirstName == firstName && x.LastName == lastName));
+
+                if (first != null) return first.ID;
+            }
+
+            exists = false;
+            var student = Student.New(!Students.Any() ? 1 : Students.OrderBy(x => x.ID).Last().ID + 1);
+            student.FirstName = firstName;
+            student.LastName = lastName;
+            Students.Add(student);
+            
+            return student.ID;
         }
     }
 }
