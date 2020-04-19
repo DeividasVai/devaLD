@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 
 namespace devaLD
 {
@@ -76,6 +77,7 @@ namespace devaLD
                 {
                     Console.Clear();
                     Console.WriteLine("--- ERROR ---\n\n");
+                    Console.WriteLine("NOTE: This might be the continuation of your last error message if received, not a new one.\n\n");
                     foreach (DictionaryEntry entry in e.Data)
                     {
                         Console.Out.WriteLine($"{entry.Key} -- {entry.Value}");
@@ -189,7 +191,10 @@ namespace devaLD
                 string.IsNullOrEmpty(input?.Split(" ")?[1]))
                 return;
 
-            AddStudent(input?.Split(" ")?[0], input?.Split(" ")?[1]);
+            AddStudent(input?.Split(" ")?[0], input?.Split(" ")?[1], out var exists);
+            if (!exists) return;
+            Console.WriteLine($"Student with such first name and last name already exists.");
+            Console.ReadLine();
         }
 
         private void AddHomeworkGradesView()
@@ -336,11 +341,44 @@ namespace devaLD
 
                     var stColumns = TextFormatter.FormatLineFromFile(line);
                     
-                    var studId = AddStudent(stColumns[0], stColumns[1]);
-                    if (studId == -1) continue;
+                    var studId = AddStudent(stColumns[0], stColumns[1], out var exists);
+                    if (exists)
+                        foreach (var student in Students.Where(student => student.ID == studId))
+                        {
+                            student.HomeworkGrades = new List<double>();
+                            student.ExamGrade = double.NaN;
+                        }
+
                     foreach (var column in columns.Where(x => x.Contains("ND")))
                     {
-                        AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
+                        try
+                        {
+                            AddGrade(studId, false, double.Parse(stColumns[columns.IndexOf(column)]));
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"\nGenerated message:\n{e.Message}");
+                            Console.WriteLine($"\nStack trace:\n{e.StackTrace}");
+                            
+                            
+                            Console.WriteLine("\n\nContinue with skipping this grade? Y/N");
+                            var answer = Console.ReadLine();
+                            if (answer?.ToLower() != "y")
+                            {
+                                Students = Students.Where(student =>
+                                {
+                                    return !studentsFileLines.Any(stLine =>
+                                    {
+                                        var stLineFormatted = TextFormatter.FormatLineFromFile(stLine);
+                                        return stLineFormatted[0] == student.FirstName &&
+                                               stLineFormatted[1] == student.LastName;
+                                    });
+                                }).ToList();
+                                throw;
+                            }
+                            else
+                                continue;
+                        }
                     }
 
                     var examIndex = columns.IndexOf("Egzaminas");
@@ -395,8 +433,10 @@ namespace devaLD
             if (directoryInfo == null) return;
             var studGenerator = StudentsGenerator.New(Path.Combine(directoryInfo.FullName, "data"));
 
-            Console.WriteLine("Do you wish to order them using different methods? Y/N");
+            Console.WriteLine("Do you wish to order the full file using different methods? Y/N");
             var orderText = Console.ReadLine();
+            Console.WriteLine("Do you wish to split and order the full file using different methods? Y/N");
+            var splitAndOrderText = Console.ReadLine();
             var selectedCount = 0;
 
             switch (selectedNo)
@@ -423,7 +463,7 @@ namespace devaLD
                     break;
             }
             
-            if (orderText.ToLower() == "y")
+            if (orderText?.ToLower() == "y")
             {
                 var stopwatch = new Stopwatch();
                 stopwatch.Start();
@@ -441,12 +481,29 @@ namespace devaLD
                 stopwatch.Stop();
                 Console.WriteLine($"Ordering with queue took: {stopwatch.Elapsed}");
             }
+            
+            if (splitAndOrderText?.ToLower() == "y")
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithLinkedList(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with linked list took: {stopwatch.Elapsed}");
+                stopwatch.Reset();
+                stopwatch.Start();
+                FilesManager.SplitStudentsWithQueue(Path.Combine(directoryInfo.FullName, "data"), StudentsGenerator.AllStudentsFileName, selectedCount);
+                stopwatch.Stop();
+                Console.WriteLine($"Split with queue took: {stopwatch.Elapsed}");
+            }
 
             Console.ReadLine();
             VisibleContent = VisibleContent.MainMenu;
         }
-
-        
 
         private bool IsAcceptOrDecline(string response, out bool answer)
         {
@@ -475,15 +532,22 @@ namespace devaLD
             return true;
         }
 
-
-        private int AddStudent(string firstName, string lastName)
+        private int AddStudent(string firstName, string lastName, out bool exists)
         {
             if (Students.Any(x => x.FirstName == firstName && x.LastName == lastName))
-                return -1;
+            {
+                exists = true;
+                var first = Students.FirstOrDefault(x => lastName != null && (x.FirstName == firstName && x.LastName == lastName));
+
+                if (first != null) return first.ID;
+            }
+
+            exists = false;
             var student = Student.New(!Students.Any() ? 1 : Students.OrderBy(x => x.ID).Last().ID + 1);
             student.FirstName = firstName;
             student.LastName = lastName;
             Students.Add(student);
+            
             return student.ID;
         }
     }

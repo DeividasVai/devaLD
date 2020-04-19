@@ -67,9 +67,9 @@ namespace devaLD
             if (File.Exists(fileFullPath))
                 File.Delete(fileFullPath);
             
-            // File.Create(fileFullPath);
-
-            FilesManager.AddToFile(fileFullPath, header);
+            using var sw = new StreamWriter(fileFullPath);
+            sw.WriteLine(header);
+            sw.Close();
         }
         
         public void GenerateStudents(int count)
